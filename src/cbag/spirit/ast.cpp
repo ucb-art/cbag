@@ -170,6 +170,10 @@ std::string name_bit::to_string(bool is_id, namespace_spectre) const {
     return get_name_bit_helper(*this, is_id, "{}_{}");
 }
 
+std::string name_bit::to_string(bool is_id, namespace_ngspice) const {
+    return get_name_bit_helper(*this, is_id, "{}_{}");
+}
+
 name_unit::name_unit() = default;
 
 name_unit::name_unit(std::string base, range idx_range)
@@ -254,6 +258,30 @@ std::string name_unit::to_string(namespace_spectre) const {
     }
 }
 
+std::string name_unit::to_string(namespace_ngspice) const {
+    if (empty())
+        return "";
+    if (is_vector()) {
+        auto n = idx_range.size();
+        if (n == 1)
+            return fmt::format("{}_{}", base, idx_range.start);
+        // spectre does not support indexing
+        std::string ans = "{";
+        ans.reserve(2 + (base.size() + 4) * n);
+        auto iter = idx_range.begin();
+        auto stop = idx_range.end();
+        ans.append(fmt::format("{}_{}", base, *iter));
+        ++iter;
+        for (; iter != stop; ++iter) {
+            ans.append(fmt::format(",{}_{}", base, *iter));
+        }
+        ans.append("}");
+        return ans;
+    } else {
+        return base;
+    }
+}
+
 // precondition: bounds[1] >= bounds[0]
 std::string to_string(const std::string &base, std::array<cnt_t, 2> bounds, namespace_cdba) {
     if (base.empty() || bounds[0] == bounds[1])
@@ -264,6 +292,24 @@ std::string to_string(const std::string &base, std::array<cnt_t, 2> bounds, name
 }
 
 std::string to_string(const std::string &base, std::array<cnt_t, 2> bounds, namespace_spectre) {
+    if (base.empty() || bounds[0] == bounds[1])
+        return base;
+    if (bounds[1] - bounds[0] == 1)
+        return fmt::format("{}_{}", base, bounds[0]);
+    // spectre does not support indexing
+    std::string ans = "{";
+    ans.reserve(2 + (base.size() + 4) * (bounds[1] - bounds[0]));
+    auto _idx = bounds[0];
+    ans.append(fmt::format("{}_{}", base, _idx));
+    ++_idx;
+    for (; _idx != bounds[1]; ++_idx) {
+        ans.append(fmt::format(",{}_{}", base, _idx));
+    }
+    ans.append("}");
+    return ans;
+}
+
+std::string to_string(const std::string &base, std::array<cnt_t, 2> bounds, namespace_ngspice) {
     if (base.empty() || bounds[0] == bounds[1])
         return base;
     if (bounds[1] - bounds[0] == 1)

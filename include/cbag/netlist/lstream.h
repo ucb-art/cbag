@@ -141,6 +141,9 @@ class lstream {
 
     nstream_output &to_file(nstream_output &stream, spirit::namespace_spectre,
                             bool newline = true) const;
+
+    nstream_output &to_file(nstream_output &stream, spirit::namespace_ngspice,
+                            bool newline = true) const;
 };
 
 } // namespace netlist

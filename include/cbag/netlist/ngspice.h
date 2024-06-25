@@ -44,26 +44,68 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef CBAG_ENUM_DESIGN_OUTPUT_H
-#define CBAG_ENUM_DESIGN_OUTPUT_H
+#ifndef CBAG_NETLIST_NGSPICE_H
+#define CBAG_NETLIST_NGSPICE_H
 
-#include <cbag/common/typedefs.h>
+#include <string>
+#include <unordered_map>
+
+#include <cbag/netlist/core.h>
+#include <cbag/netlist/nstream_output.h>
 
 namespace cbag {
+namespace netlist {
 
-enum class design_output : enum_t {
-    LAYOUT = 0,
-    GDS = 1,
-    SCHEMATIC = 2,
-    YAML = 3,
-    CDL = 4,
-    VERILOG = 5,
-    SYSVERILOG = 6,
-    SPECTRE = 7,
-    OASIS = 8,
-    NGSPICE = 9,
+class ngspice_stream : public nstream_output {
+  private:
+    cnt_t precision_ = 6;
+    std::unordered_map<std::string, std::string> cell_name_map_;
+    std::unordered_map<std::string, std::string> prop_name_map_;
+    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> cell_prop_map_;
+
+  public:
+    ngspice_stream();
+
+    ngspice_stream(const std::string &fname, cnt_t precision);
+
+    const std::string &get_cell_name(const std::string &cell_name) const;
+
+    const std::string &get_prop_name(const std::string &cell_name,
+                                     const std::string &prop_name) const;
+
+    cnt_t precision() const noexcept;
 };
 
+template <> struct traits::nstream<ngspice_stream> {
+    using type = ngspice_stream;
+
+    static void close(type &stream);
+
+    static void write_header(type &stream, const std::vector<std::string> &inc_list, bool shell);
+
+    static void write_end(type &stream);
+
+    static void write_cv_header(type &stream, const std::string &name,
+                                const sch::cellview_info &info, bool shell, bool write_subckt,
+                                bool write_declarations);
+
+    static void write_cv_end(type &stream, const std::string &name, bool write_subckt);
+
+    static void write_unit_instance(type &stream, const std::string &prefix, cnt_t inst_idx,
+                                    const spirit::ast::name_unit &name_ast,
+                                    const term_net_vec_t &conn_list, const param_map &params,
+                                    const sch::cellview_info &info,
+                                    const net_rename_map_t *net_map_ptr);
+
+    static void append_netlist(type &stream, const std::string &netlist);
+
+    static void write_supply_wrapper(type &stream, const std::string &name,
+                                     const sch::cellview_info &info);
+
+    static net_rename_map_t new_net_rename_map();
+};
+
+} // namespace netlist
 } // namespace cbag
 
-#endif
+#endif // CBAG_NETLIST_ngspice_H

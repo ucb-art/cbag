@@ -115,6 +115,12 @@ std::string get_cv_header(const sch::cellview &cv, const std::string &cell_name,
                                                          false);
         return stream.get_content();
     }
+    case design_output::NGSPICE: {
+        auto stream = ngspice_stream();
+        traits::nstream<ngspice_stream>::write_cv_header(stream, cell_name, info, false, true,
+                                                         false);
+        return stream.get_content();
+    }
     case design_output::VERILOG:
     case design_output::SYSVERILOG: {
         auto stream = verilog_stream();

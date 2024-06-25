@@ -157,6 +157,7 @@ set(SRC_FILES_LIB_CBAG
   ${CMAKE_CURRENT_SOURCE_DIR}/src/cbag/netlist/core.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/cbag/netlist/lstream.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/cbag/netlist/netlist.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/cbag/netlist/ngspice.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/cbag/netlist/nstream_output.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/cbag/netlist/spectre.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/cbag/netlist/verilog.cpp

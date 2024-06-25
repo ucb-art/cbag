@@ -165,6 +165,11 @@ nstream_output &lstream::to_file(nstream_output &stream, spirit::namespace_spect
     helper::to_file_helper(*this, stream, newline, 0, false, 80, "+");
     return stream;
 }
+nstream_output &lstream::to_file(nstream_output &stream, spirit::namespace_ngspice,
+                                 bool newline) const {
+    helper::to_file_helper(*this, stream, newline, 0, false, 80, "+");
+    return stream;
+}
 
 } // namespace netlist
 } // namespace cbag

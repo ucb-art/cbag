@@ -58,6 +58,7 @@ limitations under the License.
 #include <cbag/netlist/cdl.h>
 #include <cbag/netlist/core.h>
 #include <cbag/netlist/spectre.h>
+#include <cbag/netlist/ngspice.h>
 #include <cbag/netlist/verilog.h>
 #include <cbag/schematic/cellview_info.h>
 #include <cbag/util/io.h>
@@ -196,6 +197,12 @@ void write_netlist(const ContentList &name_cv_list, const std::unordered_set<std
     case design_output::SPECTRE:
         logger->info("Writing Spectre netlist: {}", fname);
         write_netlist_helper(name_cv_list, spectre_stream(fname, precision), flat, shell,
+                             top_subckt, sup_mode, top_set, netlist_map, inc_list, append_file,
+                             *logger);
+        break;
+    case design_output::NGSPICE:
+        logger->info("Writing NGSpice netlist: {}", fname);
+        write_netlist_helper(name_cv_list, ngspice_stream(fname, precision), flat, shell,
                              top_subckt, sup_mode, top_set, netlist_map, inc_list, append_file,
                              *logger);
         break;

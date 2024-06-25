@@ -56,6 +56,7 @@ struct namespace_cdba {};
 struct namespace_cdl_cmd {};
 struct namespace_verilog {};
 struct namespace_spectre {};
+struct namespace_ngspice {};
 
 } // namespace spirit
 } // namespace cbag

@@ -146,6 +146,7 @@ struct name_bit {
     std::string to_string(bool is_id, namespace_cdba) const;
     std::string to_string(bool is_id, namespace_verilog) const;
     std::string to_string(bool is_id, namespace_spectre) const;
+    std::string to_string(bool is_id, namespace_ngspice) const;
 };
 
 /** Represents a unit name; either a scalar or vector name.
@@ -175,6 +176,7 @@ struct name_unit : x3::position_tagged {
     std::string to_string(namespace_cdba) const;
     std::string to_string(namespace_verilog) const;
     std::string to_string(namespace_spectre) const;
+    std::string to_string(namespace_ngspice) const;
 };
 
 std::string to_string(const std::string &base, std::array<cnt_t, 2> bounds, namespace_cdba);
