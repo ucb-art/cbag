@@ -82,15 +82,15 @@ void get_cv_pins(lstream &b, const std::vector<std::string> &names) {
     }
 }
 
-
-
 std::unordered_map<std::string, std::string> new_cell_name_map() {
     // map CDF cell names to ngspice cell names
     // TODO: switch. requires a model.
     auto cell_map = std::unordered_map<std::string, std::string>();
     cell_map["cap"] = "";
+    cell_map["dcblock"] = "";
     cell_map["idc"] = "dc";
     cell_map["ind"] = "";
+    cell_map["dcfeed"] = "";
     cell_map["ipulse"] = "pulse";
     cell_map["ipwlf"] = "pwl";
     cell_map["isin"] = "sin";
@@ -108,8 +108,10 @@ std::unordered_map<std::string, std::vector<std::string>> primitive_map() {
     auto prim_map = std::unordered_map<std::string, std::vector<std::string>>();
     // Passives
     prim_map["cap"] = {"c"};
+    prim_map["dcblock"] = {"c"};
     prim_map["res"] = {"r"};
     prim_map["ind"] = {"l"};
+    prim_map["dcfeed"] = {"l"};
     //Sources, single value
     prim_map["idc"] = {"idc"};
     prim_map["vdc"] = {"vdc"};
@@ -133,6 +135,7 @@ std::unordered_map<std::string, std::unordered_map<std::string, std::string>> ne
 }
 
 template <class OutIter> class write_param_alt {
+  // Class for writing most primitives for Ngspice
   private:
     OutIter &iter_;
     std::string dbl_fmt_;
@@ -144,6 +147,37 @@ template <class OutIter> class write_param_alt {
     void operator()(const std::string &v) const {*iter_ = fmt::format("'{}'", v);}
     void operator()(const int_fast32_t &v) const { *iter_ = fmt::format("{}", v); }
     void operator()(const double_t &v) const { *iter_ = fmt::format(dbl_fmt_, v); }
+    void operator()(const bool &v) const {
+        auto logger = cbag::get_cbag_logger();
+        logger->warn("bool parameter, do nothing.");
+    }
+    void operator()(const time_struct &v) const {
+        auto logger = cbag::get_cbag_logger();
+        logger->warn("time parameter, do nothing.");
+    }
+    void operator()(const binary_t &v) const {
+        auto logger = cbag::get_cbag_logger();
+        logger->warn("binary parameter, do nothing.");
+    }
+};
+
+template <class OutIter> class write_raw {
+  // Class for writing raw strings.
+  private:
+    OutIter &iter_;
+
+  public:
+    write_raw(OutIter &iter): iter_(iter) {}
+
+    void operator()(const std::string &v) const {*iter_ = v;}
+    void operator()(const int_fast32_t &v) const {
+        auto logger = cbag::get_cbag_logger();
+        logger->warn("int parameter, do nothing.");
+    }
+    void operator()(const double_t &v) const {
+        auto logger = cbag::get_cbag_logger();
+        logger->warn("double parameter, do nothing.");
+    }
     void operator()(const bool &v) const {
         auto logger = cbag::get_cbag_logger();
         logger->warn("bool parameter, do nothing.");
@@ -185,9 +219,26 @@ void write_instance_cell_name(OutIter &&iter, const param_map &params,
         auto prim_map = primitive_map();
         std::vector<std::string> param_list;
 
-        // Two ways to use vsin -> AC source or tran source.
-        // TODO: how to handle option / default cases?
-        if ((info.cell_name == "vsin" || info.cell_name == "isin") & (par_map.find("acm") != par_map.end())) {
+        if (info.cell_name == "port") {
+            // Sanity check for values
+            for (const std::string &key : {"vdc", "acm", "num"}) {
+                auto val_loc = par_map.find(key);
+                if (val_loc == par_map.end())
+                    throw std::runtime_error("Ngspice requires key for RF port: " + key);
+            }
+
+            // Just do this manually
+            // dc <val> ac <val> portnum <num>
+            std::visit(write_raw(iter), value_t(std::string("dc")));
+            std::visit(write_param_alt(iter, precision), par_map.find("vdc")->second);
+            std::visit(write_raw(iter), value_t(std::string("ac")));
+            std::visit(write_param_alt(iter, precision), par_map.find("acm")->second);
+            std::visit(write_raw(iter), value_t(std::string("portnum")));
+            std::visit(write_param_alt(iter, precision), par_map.find("num")->second);
+        }
+        else if ((info.cell_name == "vsin" || info.cell_name == "isin") & (par_map.find("acm") != par_map.end())) {
+            // Two ways to use vsin -> AC source or tran source.
+            // TODO: how to handle option / default cases?
             param_list = {"acm"};
             *iter = "ac";
         }
@@ -207,7 +258,7 @@ void write_instance_cell_name(OutIter &&iter, const param_map &params,
             auto val_loc = par_map.find(key);
             if (val_loc == par_map.end())
                 throw std::runtime_error("Source or prim parameter not found for cell " + info.cell_name + ": " + key);
-            std::visit(write_param_alt(iter, precision), par_map.find(key)->second);
+            std::visit(write_param_alt(iter, precision), val_loc->second);
         }
     } else {
         *iter = cur_cell_name;

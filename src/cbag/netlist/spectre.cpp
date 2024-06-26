@@ -206,6 +206,7 @@ const std::string &spectre_stream::get_cell_name(const std::string &cell_name) c
 
 const std::string &spectre_stream::get_prop_name(const std::string &cell_name,
                                                  const std::string &prop_name) const {
+    // Check if there is a mapping for this specific cell name
     auto map_iter = cell_prop_map_.find(cell_name);
     if (map_iter != cell_prop_map_.end()) {
         auto &map_ref = map_iter->second;
@@ -213,6 +214,7 @@ const std::string &spectre_stream::get_prop_name(const std::string &cell_name,
         if (iter != map_ref.end())
             return iter->second;
     }
+    // Check if there is a mapping for this prop name
     auto iter = prop_name_map_.find(prop_name);
     return (iter == prop_name_map_.end()) ? prop_name : iter->second;
 }
