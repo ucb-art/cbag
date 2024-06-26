@@ -102,44 +102,24 @@ std::unordered_map<std::string, std::string> new_cell_name_map() {
     return cell_map;
 }
 
-
-std::unordered_map<std::string, std::string> new_prop_name_map() {
-    // map CDF properties to ngspice properties
-    auto prop_map = std::unordered_map<std::string, std::string>();
-    prop_map["acm"] = "mag";
-    prop_map["acp"] = "phase";
-    prop_map["dataFile"] = "file";
-    prop_map["egain"] = "gain";
-    prop_map["fgain"] = "gain";
-    prop_map["fileName"] = "file";
-    prop_map["ggain"] = "gm";
-    prop_map["hgain"] = "rm";
-    prop_map["i1"] = "val0";
-    prop_map["i2"] = "val1";
-    prop_map["ia"] = "ampl";
-    prop_map["io"] = "sinedc";
-    prop_map["idc"] = "dc";
-    prop_map["k"] = "coupling";
-    prop_map["maxm"] = "max";
-    prop_map["minm"] = "min";
-    prop_map["pacm"] = "pacmag";
-    prop_map["pacp"] = "pacphase";
-    prop_map["per"] = "period";
-    prop_map["pw"] = "width";
-    prop_map["rc"] = "rclosed";
-    prop_map["ro"] = "ropen";
-    prop_map["srcType"] = "type";
-    prop_map["td"] = "delay";
-    prop_map["tf"] = "fall";
-    prop_map["tr"] = "rise";
-    prop_map["v1"] = "val0";
-    prop_map["v2"] = "val1";
-    prop_map["va"] = "ampl";
-    prop_map["vo"] = "sinedc";
-    prop_map["vdc"] = "dc";
-    prop_map["vref"] = "probe";
-    prop_map["xfm"] = "xfmag";
-    return prop_map;
+std::unordered_map<std::string, std::vector<std::string>> primitive_map() {
+    // Map ckt primitives to the key order
+    // Ngspice does not support assign by name, only by order
+    auto prim_map = std::unordered_map<std::string, std::vector<std::string>>();
+    // Passives
+    prim_map["cap"] = {"c"};
+    prim_map["res"] = {"r"};
+    prim_map["ind"] = {"l"};
+    //Sources, single value
+    prim_map["idc"] = {"idc"};
+    prim_map["vdc"] = {"vdc"};
+    // prim_map["vsin"] = {"acm"};
+    // prim_map["isin"] = {"acm"};
+    //Sources, multivalue
+    prim_map["ac"] = {"acm", "acp"};
+    prim_map["pulse"] = {"v1", "v2", "td", "tr", "tf", "pw", "per"};
+    prim_map["sin"] = {"vo", "va", "freq", "td", "theta", "phase"};
+    return prim_map;
 }
 
 std::unordered_map<std::string, std::unordered_map<std::string, std::string>> new_cell_prop_map() {
@@ -184,7 +164,6 @@ void write_instance_cell_name(OutIter &&iter, const param_map &params,
     auto &cur_cell_name = (info.lib_name == "analogLib" || info.lib_name == "basic")
                               ? stream.get_cell_name(info.cell_name)
                               : info.cell_name;
-    *iter = cur_cell_name;
 
     // get default parameter values
     param_map par_map(info.props);
@@ -193,31 +172,36 @@ void write_instance_cell_name(OutIter &&iter, const param_map &params,
         par_map.insert_or_assign(key, val);
     }
 
+    // Early escape
+    if (par_map.size() < 1) {
+        *iter = cur_cell_name;
+        return;
+    }
+
     // write instance parameters
     cnt_t precision = stream.precision();
     if (info.lib_name == "analogLib" || info.lib_name == "basic") {
         // Ngspice does not support assign by name, only by order
+        auto prim_map = primitive_map();
         std::vector<std::string> param_list;
-        // Passives: cap, val, res. Maps to empty string
-        // if (cur_cell_name == "")
-        // TODO: move these maps elsewhere
-        if (info.cell_name == "cap")
-            param_list = {"c"};
-        else if (info.cell_name == "res")
-            param_list = {"r"};
-        else if (info.cell_name == "ind")
-            param_list = {"l"};            
-        // Sources
-        else if (cur_cell_name == "dc")
-            param_list = {"vdc"};
-        else if (cur_cell_name == "ac") 
-            param_list = {"acm", "acp"};
-        else if (cur_cell_name == "pulse") 
-            param_list = {"v1", "v2", "td", "tr", "tf", "pw", "per"};
-        else if (cur_cell_name == "sin") 
-            param_list = {"vo", "va", "freq", "td", "theta", "phase"};
-        else 
-            throw std::runtime_error("Unsupported or not implemented basic type for Ngspice plugin: " + info.cell_name + " / " + cur_cell_name);
+
+        // Two ways to use vsin -> AC source or tran source.
+        // TODO: how to handle option / default cases?
+        if ((info.cell_name == "vsin" || info.cell_name == "isin") & (par_map.find("acm") != par_map.end())) {
+            param_list = {"acm"};
+            *iter = "ac";
+        }
+        else {
+            // Search first by original name, then by new name.
+            auto val_loc = prim_map.find(info.cell_name);
+            if (val_loc == prim_map.end()) {
+                val_loc = prim_map.find(cur_cell_name);
+                if (val_loc == prim_map.end()) 
+                    throw std::runtime_error("Unsupported or not implemented basic type for Ngspice plugin: " + info.cell_name + " / " + cur_cell_name);
+            }
+            param_list = val_loc->second;
+            *iter = cur_cell_name;
+        }
         
         for (const std::string &key : param_list) {
             auto val_loc = par_map.find(key);
@@ -226,6 +210,7 @@ void write_instance_cell_name(OutIter &&iter, const param_map &params,
             std::visit(write_param_alt(iter, precision), par_map.find(key)->second);
         }
     } else {
+        *iter = cur_cell_name;
         for (auto const & [ key, val ] : par_map) {
             std::visit(write_param_visitor(iter, key, precision), val);
         }
@@ -236,30 +221,16 @@ void write_instance_cell_name(OutIter &&iter, const param_map &params,
 
 ngspice_stream::ngspice_stream()
     : nstream_output(), cell_name_map_(ngspice::new_cell_name_map()),
-      prop_name_map_(ngspice::new_prop_name_map()), cell_prop_map_(ngspice::new_cell_prop_map()) {}
+      cell_prop_map_(ngspice::new_cell_prop_map()) {}
 
 ngspice_stream::ngspice_stream(const std::string &fname, cnt_t precision)
     : nstream_output(fname), precision_(precision), cell_name_map_(ngspice::new_cell_name_map()),
-      prop_name_map_(ngspice::new_prop_name_map()), cell_prop_map_(ngspice::new_cell_prop_map()) {}
+      cell_prop_map_(ngspice::new_cell_prop_map()) {}
 
 const std::string &ngspice_stream::get_cell_name(const std::string &cell_name) const {
     auto iter = cell_name_map_.find(cell_name);
     return (iter == cell_name_map_.end()) ? cell_name : iter->second;
 }
-
-const std::string &ngspice_stream::get_prop_name(const std::string &cell_name,
-                                                 const std::string &prop_name) const {
-    auto map_iter = cell_prop_map_.find(cell_name);
-    if (map_iter != cell_prop_map_.end()) {
-        auto &map_ref = map_iter->second;
-        auto iter = map_ref.find(prop_name);
-        if (iter != map_ref.end())
-            return iter->second;
-    }
-    auto iter = prop_name_map_.find(prop_name);
-    return (iter == prop_name_map_.end()) ? prop_name : iter->second;
-}
-
 cnt_t ngspice_stream::precision() const noexcept { return precision_; }
 
 void traits::nstream<ngspice_stream>::close(type &stream) { stream.close(); }
@@ -290,9 +261,9 @@ void traits::nstream<ngspice_stream>::write_cv_header(type &stream, const std::s
         lstream b;
         b << ".subckt";
         b << name;
-        ngspice::get_cv_pins(b, info.in_terms);
         ngspice::get_cv_pins(b, info.out_terms);
         ngspice::get_cv_pins(b, info.io_terms);
+        ngspice::get_cv_pins(b, info.in_terms);
 
         // write definition line
         b.to_file(stream, spirit::namespace_ngspice{});
