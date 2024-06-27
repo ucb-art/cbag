@@ -236,11 +236,28 @@ void write_instance_cell_name(OutIter &&iter, const param_map &params,
             std::visit(write_raw(iter), value_t(std::string("portnum")));
             std::visit(write_param_alt(iter, precision), par_map.find("num")->second);
         }
+        else if ((info.cell_name == "vdc" || info.cell_name == "idc")) {
+            // DC and AC sources in Ngspice are combined and may have both a DC and an AC component.
+            std::visit(write_raw(iter), value_t(std::string("dc")));
+            std::visit(write_param_alt(iter, precision), par_map.find("vdc")->second);
+
+            if (par_map.find("acm") != par_map.end()) {
+                std::visit(write_raw(iter), value_t(std::string("ac")));
+                std::visit(write_param_alt(iter, precision), par_map.find("acm")->second);
+            }
+            return;
+        }
         else if ((info.cell_name == "vsin" || info.cell_name == "isin") & (par_map.find("acm") != par_map.end())) {
             // Two ways to use vsin -> AC source or tran source.
-            // TODO: how to handle option / default cases?
-            param_list = {"acm"};
-            *iter = "ac";
+            // This is the escape case for AC source.
+            if (par_map.find("vdc") != par_map.end()) {
+                std::visit(write_raw(iter), value_t(std::string("dc")));
+                std::visit(write_param_alt(iter, precision), par_map.find("vdc")->second);
+            }
+
+            std::visit(write_raw(iter), value_t(std::string("ac")));
+            std::visit(write_param_alt(iter, precision), par_map.find("acm")->second);
+            return;
         }
         else {
             // Search first by original name, then by new name.
