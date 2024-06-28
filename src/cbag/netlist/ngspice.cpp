@@ -99,6 +99,9 @@ std::unordered_map<std::string, std::string> new_cell_name_map() {
     cell_map["vpulse"] = "pulse";
     cell_map["vpwlf"] = "pwl";
     cell_map["vsin"] = "sin";
+    // Ngspice specific
+    cell_map["vtrnoise"] = "trnoise";
+    cell_map["itrnoise"] = "trnoise";
     return cell_map;
 }
 
@@ -113,14 +116,12 @@ std::unordered_map<std::string, std::vector<std::string>> primitive_map() {
     prim_map["ind"] = {"l"};
     prim_map["dcfeed"] = {"l"};
     //Sources, single value
-    prim_map["idc"] = {"idc"};
-    prim_map["vdc"] = {"vdc"};
-    // prim_map["vsin"] = {"acm"};
-    // prim_map["isin"] = {"acm"};
+    //  -> Handled directly below
     //Sources, multivalue
     prim_map["ac"] = {"acm", "acp"};
     prim_map["pulse"] = {"v1", "v2", "td", "tr", "tf", "pw", "per"};
     prim_map["sin"] = {"vo", "va", "freq", "td", "theta", "phase"};
+    prim_map["trnoise"] = {"na", "nt", "nalpha", "namp"};
     return prim_map;
 }
 
@@ -144,7 +145,11 @@ template <class OutIter> class write_param_alt {
     write_param_alt(OutIter &iter, uint_fast32_t precision)
         : iter_(iter), dbl_fmt_(fmt::format("{{}}={{:.{}g}}", precision)) {}
 
-    void operator()(const std::string &v) const {*iter_ = fmt::format("'{}'", v);}
+    void operator()(const std::string &v) const {
+        // TODO: sanity checking the keys, perhaps with v.empty().
+        //   Better is to include the key name.
+        *iter_ = fmt::format("'{}'", v);
+    }
     void operator()(const int_fast32_t &v) const { *iter_ = fmt::format("{}", v); }
     void operator()(const double_t &v) const { *iter_ = fmt::format(dbl_fmt_, v); }
     void operator()(const bool &v) const {
@@ -195,7 +200,10 @@ template <class OutIter> class write_raw {
 template <class OutIter>
 void write_instance_cell_name(OutIter &&iter, const param_map &params,
                               const sch::cellview_info &info, ngspice_stream &stream) {
-    auto &cur_cell_name = (info.lib_name == "analogLib" || info.lib_name == "basic")
+    bool is_prim = (info.lib_name == "analogLib" || info.lib_name == "basic" 
+        || info.lib_name == "ngspice");
+
+    auto &cur_cell_name = is_prim
                               ? stream.get_cell_name(info.cell_name)
                               : info.cell_name;
 
@@ -214,7 +222,7 @@ void write_instance_cell_name(OutIter &&iter, const param_map &params,
 
     // write instance parameters
     cnt_t precision = stream.precision();
-    if (info.lib_name == "analogLib" || info.lib_name == "basic") {
+    if (is_prim) {
         // Ngspice does not support assign by name, only by order
         auto prim_map = primitive_map();
         std::vector<std::string> param_list;
