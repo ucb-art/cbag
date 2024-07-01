@@ -103,6 +103,7 @@ std::unordered_map<std::string, std::vector<std::string>> primitive_map() {
     //Sources, single value
     //  -> Handled directly below
     //Sources, multivalue
+    prim_map["pwl"] = {"value"};
     prim_map["ac"] = {"acm", "acp"};
     prim_map["pulse"] = {"v1", "v2", "td", "tr", "tf", "pw", "per"};
     prim_map["sin"] = {"vo", "va", "freq", "td", "theta", "phase"};
@@ -235,6 +236,11 @@ void write_instance_cell_name(OutIter &&iter, const param_map &params,
             std::visit(write_param_alt(iter, precision), par_map.find("vdc")->second);
 
             if (par_map.find("acm") != par_map.end()) {
+                if (std::holds_alternative<std::string>(par_map.find("acm")->second)) {
+                    if ((std::get<std::string>(par_map.find("acm")->second)).empty()) {
+                        return;
+                    }
+                }
                 std::visit(write_raw(iter), value_t(std::string("ac")));
                 std::visit(write_param_alt(iter, precision), par_map.find("acm")->second);
             }
@@ -244,12 +250,25 @@ void write_instance_cell_name(OutIter &&iter, const param_map &params,
             // Two ways to use vsin -> AC source or tran source.
             // This is the escape case for AC source.
             if (par_map.find("vdc") != par_map.end()) {
-                std::visit(write_raw(iter), value_t(std::string("dc")));
-                std::visit(write_param_alt(iter, precision), par_map.find("vdc")->second);
+                if (std::holds_alternative<std::string>(par_map.find("vdc")->second)) {
+                    if (!(std::get<std::string>(par_map.find("vdc")->second)).empty()) {
+                        std::visit(write_raw(iter), value_t(std::string("dc")));
+                        std::visit(write_param_alt(iter, precision), par_map.find("vdc")->second);
+                    }
+                } else {
+                    std::visit(write_raw(iter), value_t(std::string("dc")));
+                    std::visit(write_param_alt(iter, precision), par_map.find("vdc")->second);
+                }
             }
 
             std::visit(write_raw(iter), value_t(std::string("ac")));
             std::visit(write_param_alt(iter, precision), par_map.find("acm")->second);
+            return;
+        }
+        else if ((info.cell_name == "vpwlf" || info.cell_name == "ipwlf")) {
+            // Ngspice expects a time-value pairs. We will pass in a raw string with these values.
+            std::visit(write_raw(iter), value_t(std::string("pwl")));
+            std::visit(write_raw(iter), par_map.find("value")->second);
             return;
         }
         else {
